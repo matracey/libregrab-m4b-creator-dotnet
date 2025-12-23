@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "editorconfig.editorconfig",
+    "esbenp.prettier-vscode",
+    "hverlin.mise-vscode",
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.csharp"
+  ]
+}
