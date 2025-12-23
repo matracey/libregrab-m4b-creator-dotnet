@@ -5,4 +5,5 @@
     <File Path="mise.toml" />
     <File Path="README.md" />
   </Folder>
+  <Project Path="src/LibreGrabM4BCreator.Core/LibreGrabM4BCreator.Core.csproj" />
 </Solution>
