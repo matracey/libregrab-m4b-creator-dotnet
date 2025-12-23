@@ -6,4 +6,5 @@
     <File Path="README.md" />
   </Folder>
   <Project Path="src/LibreGrabM4BCreator.Core/LibreGrabM4BCreator.Core.csproj" />
+  <Project Path="src/LibreGrabM4BCreator.Console/LibreGrabM4BCreator.Console.csproj" />
 </Solution>
