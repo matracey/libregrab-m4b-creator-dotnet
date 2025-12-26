@@ -1,0 +1,107 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.os }}, .NET ${{ matrix.dotnet-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        dotnet-version: ['8.0.x', '9.0.x', '10.0.x']
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup .NET ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run tests
+        run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}-net${{ matrix.dotnet-version }}
+          path: '**/TestResults/*.trx'
+          retention-days: 7
+
+  publish-artifacts:
+    name: Publish (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    needs: build-and-test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact-name: linux-x64
+          - os: ubuntu-latest
+            rid: linux-arm64
+            artifact-name: linux-arm64
+          - os: windows-latest
+            rid: win-x64
+            artifact-name: windows-x64
+          - os: windows-latest
+            rid: win-arm64
+            artifact-name: windows-arm64
+          - os: macos-latest
+            rid: osx-x64
+            artifact-name: macos-x64
+          - os: macos-latest
+            rid: osx-arm64
+            artifact-name: macos-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Publish for ${{ matrix.rid }} (net8.0)
+        run: dotnet publish src/LibreGrabM4BCreator.Console/LibreGrabM4BCreator.Console.csproj --configuration Release --runtime ${{ matrix.rid }} --framework net8.0 --self-contained true --output ./artifacts/${{ matrix.rid }}/net8.0
+
+      - name: Publish for ${{ matrix.rid }} (net9.0)
+        run: dotnet publish src/LibreGrabM4BCreator.Console/LibreGrabM4BCreator.Console.csproj --configuration Release --runtime ${{ matrix.rid }} --framework net9.0 --self-contained true --output ./artifacts/${{ matrix.rid }}/net9.0
+
+      - name: Publish for ${{ matrix.rid }} (net10.0)
+        run: dotnet publish src/LibreGrabM4BCreator.Console/LibreGrabM4BCreator.Console.csproj --configuration Release --runtime ${{ matrix.rid }} --framework net10.0 --self-contained true --output ./artifacts/${{ matrix.rid }}/net10.0
+
+      - name: Upload artifacts for ${{ matrix.artifact-name }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: libregrab-m4b-creator-${{ matrix.artifact-name }}
+          path: ./artifacts/${{ matrix.rid }}
+          retention-days: 30
