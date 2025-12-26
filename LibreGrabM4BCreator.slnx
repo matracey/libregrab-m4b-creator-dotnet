@@ -7,4 +7,7 @@
   </Folder>
   <Project Path="src/LibreGrabM4BCreator.Core/LibreGrabM4BCreator.Core.csproj" />
   <Project Path="src/LibreGrabM4BCreator.Console/LibreGrabM4BCreator.Console.csproj" />
+  <Folder Name="/test/">
+    <Project Path="test/LibreGrabM4BCreator.Tests.Core.UnitTests/LibreGrabM4BCreator.Tests.Core.UnitTests.csproj" />
+  </Folder>
 </Solution>
