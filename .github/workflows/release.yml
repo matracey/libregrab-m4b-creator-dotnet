@@ -1,0 +1,199 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    outputs:
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
+      new_version: ${{ steps.tag_version.outputs.new_version }}
+      changelog: ${{ steps.tag_version.outputs.changelog }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: ${{ github.event.inputs.version_bump || 'patch' }}
+          release_branches: main
+          tag_prefix: v
+
+      - name: Update version in Directory.Build.props
+        run: |
+          NEW_VERSION="${{ steps.tag_version.outputs.new_version }}"
+          sed -i "s|<Version>.*</Version>|<Version>$NEW_VERSION</Version>|g" Directory.Build.props
+          sed -i "s|<AssemblyVersion>.*</AssemblyVersion>|<AssemblyVersion>$NEW_VERSION</AssemblyVersion>|g" Directory.Build.props
+          sed -i "s|<FileVersion>.*</FileVersion>|<FileVersion>$NEW_VERSION</FileVersion>|g" Directory.Build.props
+          sed -i "s|<InformationalVersion>.*</InformationalVersion>|<InformationalVersion>$NEW_VERSION</InformationalVersion>|g" Directory.Build.props
+          echo "Updated Directory.Build.props with version $NEW_VERSION"
+          cat Directory.Build.props
+
+      - name: Commit version bump
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: bump version to ${{ steps.tag_version.outputs.new_version }} [skip ci]"
+          file_pattern: Directory.Build.props
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
+          skip_dirty_check: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+  publish-release-artifacts:
+    name: Publish Release Artifacts (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact-name: linux-x64
+          - os: ubuntu-latest
+            rid: linux-arm64
+            artifact-name: linux-arm64
+          - os: windows-latest
+            rid: win-x64
+            artifact-name: windows-x64
+          - os: windows-latest
+            rid: win-arm64
+            artifact-name: windows-arm64
+          - os: macos-latest
+            rid: osx-x64
+            artifact-name: macos-x64
+          - os: macos-latest
+            rid: osx-arm64
+            artifact-name: macos-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' Directory.Build.props)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Publish for ${{ matrix.rid }}
+        run: dotnet publish src/LibreGrabM4BCreator.Console/LibreGrabM4BCreator.Console.csproj --configuration Release --runtime ${{ matrix.rid }} --framework net10.0 --self-contained true --output ./artifacts/${{ matrix.rid }} /p:PublishSingleFile=true /p:PublishTrimmed=true
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.version.outputs.version }}"
+          Compress-Archive -Path "artifacts/${{ matrix.rid }}/*" -DestinationPath "libregrab-m4b-creator-${{ matrix.artifact-name }}-v$VERSION.zip"
+
+      - name: Create archive (Unix)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          tar -czf "libregrab-m4b-creator-${{ matrix.artifact-name }}-v${VERSION}.tar.gz" -C "artifacts/${{ matrix.rid }}" .
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-${{ matrix.artifact-name }}
+          path: |
+            *.zip
+            *.tar.gz
+          retention-days: 90
+
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [release, publish-release-artifacts]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: release-artifacts
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.new_tag }}
+          name: Release ${{ needs.release.outputs.new_tag }}
+          body: |
+            ## What's Changed
+            
+            ${{ needs.release.outputs.changelog }}
+            
+            ## Downloads
+            
+            Download the appropriate binary for your platform below.
+            
+            ### Available Platforms
+            - **Linux**: x64, ARM64
+            - **Windows**: x64, ARM64  
+            - **macOS**: x64, ARM64
+            
+            All binaries are self-contained and include the .NET 10 runtime—no installation required!
+          draft: false
+          prerelease: false
+          files: release-artifacts/*
+          token: ${{ secrets.GITHUB_TOKEN }}
