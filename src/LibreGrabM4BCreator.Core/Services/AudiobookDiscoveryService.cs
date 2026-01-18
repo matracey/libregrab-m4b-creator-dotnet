@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using LibreGrabM4BCreator.Core.Models;
+using LibreGrabM4BCreator.Core.Serialization;
 
 namespace LibreGrabM4BCreator.Core.Services;
 
@@ -54,7 +55,7 @@ public sealed partial class AudiobookDiscoveryService
             try
             {
                 var json = await File.ReadAllTextAsync(metadataPath);
-                metadata = JsonSerializer.Deserialize<LibreGrabMetadata>(json);
+                metadata = JsonSerializer.Deserialize(json, LibreGrabJsonContext.Default.LibreGrabMetadata);
             }
             catch
             {
