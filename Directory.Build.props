@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0</AssemblyVersion>
+    <FileVersion>0.1.0</FileVersion>
+    <InformationalVersion>0.1.0</InformationalVersion>
+    <Authors>matracey</Authors>
+    <Company>matracey</Company>
+    <Product>LibreGrab M4B Creator</Product>
+    <Description>A tool to convert LibreGrab audiobooks to M4B format with chapter support</Description>
+    <Copyright>Copyright © $(Authors) $([System.DateTime]::Now.Year)</Copyright>
+    <PackageProjectUrl>https://github.com/matracey/libregrab-m4b-creator-dotnet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/matracey/libregrab-m4b-creator-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+</Project>
